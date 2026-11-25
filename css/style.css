@@ -154,6 +154,10 @@ button {
   color: var(--accent);
 }
 
+.nav-label-short {
+  display: none;
+}
+
 .header-tools {
   display: flex;
   align-items: center;
@@ -1392,11 +1396,20 @@ button {
   .main-nav {
     display: flex;
     justify-content: space-between;
+    overflow-x: visible;
+  }
+
+  .nav-label-full {
+    display: none;
+  }
+
+  .nav-label-short {
+    display: inline;
   }
 
   .nav-btn {
     padding: 9px 6px;
-    font-size: 0.77rem;
+    font-size: 0.82rem;
     min-height: 42px;
     gap: 4px;
     flex: 1 1 auto;
