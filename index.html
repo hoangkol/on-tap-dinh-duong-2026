@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ôn tập Dinh dưỡng – Vệ sinh An toàn Thực phẩm (2026)</title>
+  <meta name="description" content="Trang ôn tập trắc nghiệm môn Dinh dưỡng – Vệ sinh An toàn Thực phẩm (10 bài, 300 câu hỏi gồm câu gốc giáo trình và câu mở rộng theo mục tiêu bài học).">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-title">Dinh dưỡng – VSATTP 2026</div>
+        <div class="brand-sub">Bài giảng Ths.Bs Nguyễn Thị Pháp · 10 bài · 300 câu trắc nghiệm</div>
+      </div>
+
+      <nav class="main-nav" aria-label="Điều hướng chính">
+        <button class="nav-btn is-active" data-tab="practice" type="button">Ôn theo bài</button>
+        <button class="nav-btn" data-tab="exam" type="button">Thi thử</button>
+        <button class="nav-btn" data-tab="cram" type="button">Mục tiêu &amp; Số liệu</button>
+        <button class="nav-btn" data-tab="saved" type="button">
+          Hay sai &amp; Đã lưu <span class="nav-count" id="savedNavCount">0</span>
+        </button>
+      </nav>
+
+      <div class="header-tools">
+        <span class="overall-stat" id="overallProgressText">Đã làm 0/300</span>
+        <button class="btn-subtle btn-sm" id="backupBtn" type="button" title="Sao lưu hoặc xóa tiến độ học tập">Tiến độ</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-wrap">
+    <!-- TAB 1: ÔN THEO BÀI -->
+    <section id="tab-practice" class="tab-panel is-active">
+      <div class="study-layout">
+        <aside class="lesson-sidebar" aria-label="Danh sách bài học">
+          <div class="sidebar-head">
+            <span>Mục lục bài giảng</span>
+            <button class="link-btn" id="selectAllLessonsBtn" type="button">Tất cả (300)</button>
+          </div>
+          <div class="mobile-lesson-select-wrap">
+            <label class="sr-only" for="mobileLessonSelect">Chọn bài học</label>
+            <select id="mobileLessonSelect" class="select-input"></select>
+          </div>
+          <ul class="lesson-list" id="lessonList"></ul>
+        </aside>
+
+        <div class="study-main">
+          <div class="lesson-banner" id="lessonBanner"></div>
+
+          <div class="filter-bar">
+            <div class="filter-group" role="group" aria-label="Lọc theo nguồn câu hỏi">
+              <button class="chip is-active" data-filter-source="all" type="button">Tất cả</button>
+              <button class="chip" data-filter-source="textbook" type="button">Có sẵn trong file</button>
+              <button class="chip" data-filter-source="objective" type="button">Theo mục tiêu</button>
+            </div>
+
+            <div class="filter-controls">
+              <select id="filterType" class="select-input select-sm" aria-label="Lọc theo dạng câu hỏi">
+                <option value="all">Mọi dạng câu</option>
+                <option value="recall">Lý thuyết</option>
+                <option value="case">Tình huống lâm sàng</option>
+                <option value="calc">Tính toán &amp; Số liệu</option>
+              </select>
+
+              <select id="filterStatus" class="select-input select-sm" aria-label="Lọc theo trạng thái làm bài">
+                <option value="all">Mọi trạng thái</option>
+                <option value="unanswered">Chưa làm</option>
+                <option value="wrong">Đang làm sai</option>
+                <option value="correct">Đã làm đúng</option>
+              </select>
+
+              <div class="segmented" role="group" aria-label="Kiểu hiển thị">
+                <button class="seg-btn is-active" data-view-mode="single" type="button">Từng câu</button>
+                <button class="seg-btn" data-view-mode="list" type="button">Danh sách</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="list-toolbar is-hidden" id="listToolbar">
+            <label class="checkbox-label">
+              <input type="checkbox" id="revealAllListToggle">
+              <span>Hiện sẵn đáp án và giải thích (để đọc ôn nhanh)</span>
+            </label>
+            <button class="link-btn" id="resetScopeBtn" type="button">Làm lại bộ lọc này</button>
+          </div>
+
+          <div id="practiceContainer"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: THI THỬ -->
+    <section id="tab-exam" class="tab-panel">
+      <div id="examContainer"></div>
+    </section>
+
+    <!-- TAB 3: MỤC TIÊU & SỐ LIỆU -->
+    <section id="tab-cram" class="tab-panel">
+      <div id="cramContainer"></div>
+    </section>
+
+    <!-- TAB 4: HAY SAI & ĐÃ LƯU -->
+    <section id="tab-saved" class="tab-panel">
+      <div id="savedContainer"></div>
+    </section>
+  </main>
+
+  <!-- MODAL QUẢN LÝ TIẾN ĐỘ -->
+  <div class="modal-backdrop is-hidden" id="backupModal" role="dialog" aria-modal="true" aria-labelledby="backupModalTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="backupModalTitle">Quản lý tiến độ ôn tập</h2>
+        <button class="btn-icon" id="closeBackupModal" type="button" aria-label="Đóng">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="muted-text">Tiến độ làm bài, câu hay sai, câu đã đánh dấu và lịch sử thi thử được tự động lưu trên trình duyệt của bạn.</p>
+        <div class="modal-stats" id="modalStatsSummary"></div>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="exportProgressBtn" type="button">Tải file sao lưu (.json)</button>
+          <label class="btn-secondary file-btn">
+            <span>Khôi phục từ file (.json)</span>
+            <input type="file" id="importProgressInput" accept=".json,application/json" hidden>
+          </label>
+        </div>
+        <hr class="divider">
+        <div class="danger-zone">
+          <div>
+            <strong>Xóa toàn bộ dữ liệu ôn tập</strong>
+            <p class="muted-text">Đưa tiến độ về trạng thái ban đầu trên trình duyệt này.</p>
+          </div>
+          <button class="btn-danger" id="clearAllProgressBtn" type="button">Xóa tiến độ</button>
+        </div>
+        <p class="status-msg is-hidden" id="backupStatusMsg"></p>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span>Dữ liệu biên soạn bám sát <em>Bài giảng Dinh dưỡng – Vệ sinh An toàn Thực phẩm (2026)</em></span>
+      <span>99 câu gốc trong giáo trình + 201 câu mở rộng theo mục tiêu bài học</span>
+    </div>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
