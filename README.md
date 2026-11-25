@@ -12,3 +12,6 @@ Trang web ôn tập trắc nghiệm bám sát *Bài giảng Dinh dưỡng – V�
 - **Mục tiêu & Số liệu:** Sổ tay tra cứu nhanh bảng số liệu hay ra thi (Atwater, DRI, Enzym & Hormon, Vitamin, Khoáng chất, Vi khuẩn ngộ độc, Mốc nhiệt độ an toàn, ĐTĐ, Tăng huyết áp, Bệnh lý tiêu hóa) có tìm kiếm tức thì.
 - **Hay sai & Đã lưu:** Tự động ghi nhận câu từng làm sai và câu đánh dấu, lưu cục bộ ngay trên trình duyệt của từng thiết bị (`localStorage`, không cần database hay đăng nhập), kể cả bài thi thử đang làm dở; hỗ trợ sao chép mã chuyển tiến độ hoặc tải file `.json` giữa điện thoại, iPad và laptop.
 - **Tương thích đa thiết bị:** Giao diện responsive tối ưu cho điện thoại (iPhone/Android), iPad (ngang & dọc) và laptop.
+
+---
+Copyright by 2026 hoangkol 0911119512

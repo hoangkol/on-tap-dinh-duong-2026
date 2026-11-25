@@ -1266,11 +1266,33 @@ button {
   margin: 0 auto;
   padding: 14px 20px;
   display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 6px;
   font-size: 0.79rem;
   color: var(--text-muted);
+}
+
+.footer-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+}
+
+.footer-copy {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.footer-tel {
+  color: inherit;
+  text-decoration: none;
+  font-family: var(--mono);
+}
+
+.footer-tel:hover {
+  text-decoration: underline;
+  color: var(--accent);
 }
 
 /* Responsive: Tablet / iPad Landscape (<= 1120px) */
