@@ -2,9 +2,13 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f4ef">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Ôn tập Dinh dưỡng – Vệ sinh An toàn Thực phẩm (2026)</title>
   <meta name="description" content="Trang ôn tập trắc nghiệm môn Dinh dưỡng – Vệ sinh An toàn Thực phẩm (10 bài, 300 câu hỏi gồm câu gốc giáo trình và câu mở rộng theo mục tiêu bài học).">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231d5948'/%3E%3Ctext x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' fill='%23f6f4ef' font-family='sans-serif' font-weight='700' font-size='28'%3EDD%3C/text%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -23,7 +27,7 @@
         <button class="nav-btn" data-tab="exam" type="button">Thi thử</button>
         <button class="nav-btn" data-tab="cram" type="button">Mục tiêu &amp; Số liệu</button>
         <button class="nav-btn" data-tab="saved" type="button">
-          Hay sai &amp; Đã lưu <span class="nav-count" id="savedNavCount">0</span>
+          Câu sai &amp; Lưu <span class="nav-count" id="savedNavCount">0</span>
         </button>
       </nav>
 
@@ -119,7 +123,7 @@
         <button class="btn-icon" id="closeBackupModal" type="button" aria-label="Đóng">×</button>
       </div>
       <div class="modal-body">
-        <p class="muted-text">Tiến độ làm bài, câu hay sai, câu đã đánh dấu và lịch sử thi thử được tự động lưu trên trình duyệt của bạn.</p>
+        <p class="muted-text" id="storagePolicyText">Mọi kết quả làm bài, câu sai, đánh dấu và bài thi đang làm dở được lưu tạm trực tiếp trên trình duyệt của thiết bị này (không cần tài khoản hay database).</p>
         <div class="modal-stats" id="modalStatsSummary"></div>
         <div class="modal-actions">
           <button class="btn-secondary" id="exportProgressBtn" type="button">Tải file sao lưu (.json)</button>
@@ -128,11 +132,19 @@
             <input type="file" id="importProgressInput" accept=".json,application/json" hidden>
           </label>
         </div>
+        <div class="transfer-box">
+          <label class="field-label" for="transferCodeInput">Chuyển nhanh tiến độ giữa điện thoại / iPad / laptop (không cần database)</label>
+          <div class="transfer-row">
+            <input type="text" id="transferCodeInput" class="text-input transfer-input" placeholder="Dán mã tiến độ từ thiết bị khác vào đây...">
+            <button class="btn-subtle btn-sm" id="copyTransferCodeBtn" type="button">Sao chép mã máy này</button>
+            <button class="btn-secondary btn-sm" id="applyTransferCodeBtn" type="button">Áp dụng mã</button>
+          </div>
+        </div>
         <hr class="divider">
         <div class="danger-zone">
           <div>
-            <strong>Xóa toàn bộ dữ liệu ôn tập</strong>
-            <p class="muted-text">Đưa tiến độ về trạng thái ban đầu trên trình duyệt này.</p>
+            <strong>Xóa toàn bộ dữ liệu trên trình duyệt này</strong>
+            <p class="muted-text">Đưa tiến độ trên thiết bị hiện tại về ban đầu.</p>
           </div>
           <button class="btn-danger" id="clearAllProgressBtn" type="button">Xóa tiến độ</button>
         </div>

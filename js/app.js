@@ -20,6 +20,19 @@ const TYPE_LABELS = {
 
 const STORAGE_KEY = 'dd_vsattp_2026_state_v1';
 
+function isLocalStorageAvailable() {
+  try {
+    const probe = '__dd_probe__';
+    localStorage.setItem(probe, '1');
+    localStorage.removeItem(probe);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const STORAGE_OK = isLocalStorageAvailable();
+
 function loadState() {
   const base = {
     activeTab: 'practice',
@@ -34,7 +47,8 @@ function loadState() {
     wrongCounts: {}, // { [qId]: number }
     bookmarks: [], // [qId]
     checkedObjectives: {}, // { [`${lessonId}-${section}-${idx}`]: true }
-    examHistory: [] // [{ id, date, total, correct, score10, durationSec, scopeLabel }]
+    examHistory: [], // [{ id, date, total, correct, score10, durationSec, label }]
+    activeExam: null // Persisted unfinished or submitted exam session on this browser
   };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -47,7 +61,8 @@ function loadState() {
       wrongCounts: parsed.wrongCounts || {},
       bookmarks: Array.isArray(parsed.bookmarks) ? parsed.bookmarks : [],
       checkedObjectives: parsed.checkedObjectives || {},
-      examHistory: Array.isArray(parsed.examHistory) ? parsed.examHistory : []
+      examHistory: Array.isArray(parsed.examHistory) ? parsed.examHistory : [],
+      activeExam: parsed.activeExam || null
     };
   } catch {
     return base;
@@ -60,16 +75,45 @@ let cramSearchQuery = '';
 let cramSubView = 'tables'; // 'tables' | 'objectives'
 let savedSubView = 'wrong'; // 'wrong' | 'bookmarks'
 
-// Active mock exam session (not persisted mid-flight unless finished, kept in memory)
-let examSession = null;
+// Active mock exam session (synced to state.activeExam in localStorage)
+let examSession = state.activeExam;
 let examTimerHandle = null;
 let pendingSubmitConfirm = false;
 
 function saveState() {
+  state.activeExam = examSession;
+  if (!STORAGE_OK) return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
     // Ignore quota errors cleanly
+  }
+}
+
+function encodeTransferCode(obj) {
+  const payload = { ...obj, activeExam: null };
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return 'DD26-' + btoa(bin);
+}
+
+function decodeTransferCode(code) {
+  const trimmed = String(code || '').trim();
+  const b64 = trimmed.startsWith('DD26-') ? trimmed.slice(5) : trimmed;
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+function scrollToQuestionTop() {
+  if (window.innerWidth <= 900) {
+    const card = document.querySelector('#practiceContainer .q-card, #examContainer .q-card');
+    if (card) {
+      const y = card.getBoundingClientRect().top + window.scrollY - 70;
+      window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+    }
   }
 }
 
@@ -475,6 +519,34 @@ function stopExamTimer() {
   }
 }
 
+function startExamTimerLoop() {
+  stopExamTimer();
+  if (!examSession || examSession.status !== 'active') return;
+  examTimerHandle = setInterval(() => {
+    if (!examSession || examSession.status !== 'active') {
+      stopExamTimer();
+      return;
+    }
+    examSession.elapsedSec = (examSession.elapsedSec || 0) + 1;
+    if (examSession.timeLimitSec > 0) {
+      examSession.remainingSec -= 1;
+      const timerEl = document.getElementById('examTimerDisplay');
+      if (timerEl) {
+        timerEl.textContent = formatDuration(examSession.remainingSec);
+        timerEl.classList.toggle('is-low', examSession.remainingSec <= 120);
+      }
+      if (examSession.remainingSec % 5 === 0) {
+        saveState();
+      }
+      if (examSession.remainingSec <= 0) {
+        submitExam();
+      }
+    } else if (examSession.elapsedSec % 5 === 0) {
+      saveState();
+    }
+  }, 1000);
+}
+
 function startExam({ lessons, source, count, minutes, shuffleQ, shuffleOpts, label, customIds = null }) {
   stopExamTimer();
   pendingSubmitConfirm = false;
@@ -523,24 +595,8 @@ function startExam({ lessons, source, count, minutes, shuffleQ, shuffleOpts, lab
     reviewFilter: 'all'
   };
 
-  if (examSession.timeLimitSec > 0) {
-    examTimerHandle = setInterval(() => {
-      if (!examSession || examSession.status !== 'active') {
-        stopExamTimer();
-        return;
-      }
-      examSession.remainingSec -= 1;
-      const timerEl = document.getElementById('examTimerDisplay');
-      if (timerEl) {
-        timerEl.textContent = formatDuration(examSession.remainingSec);
-        timerEl.classList.toggle('is-low', examSession.remainingSec <= 120);
-      }
-      if (examSession.remainingSec <= 0) {
-        submitExam();
-      }
-    }, 1000);
-  }
-
+  saveState();
+  startExamTimerLoop();
   renderExamTab();
 }
 
@@ -549,7 +605,7 @@ function submitExam() {
   stopExamTimer();
   pendingSubmitConfirm = false;
 
-  examSession.elapsedSec = Math.max(1, Math.round((Date.now() - examSession.startedAt) / 1000));
+  examSession.elapsedSec = Math.max(1, examSession.elapsedSec || Math.round((Date.now() - examSession.startedAt) / 1000));
   examSession.status = 'submitted';
 
   let correct = 0;
@@ -606,11 +662,11 @@ function renderExamSetup() {
             <tbody>
               ${state.examHistory.map(h => `
                 <tr>
-                  <td>${esc(h.date)}</td>
-                  <td>${esc(h.label)}</td>
-                  <td><span style="font-family:var(--mono);">${h.correct}/${h.total}</span></td>
-                  <td><strong style="font-family:var(--mono);color:var(--accent);">${h.score10.toFixed(2)}</strong></td>
-                  <td>${esc(formatDurationWords(h.durationSec))}</td>
+                  <td class="nowrap-cell">${esc(h.date)}</td>
+                  <td style="min-width:160px;">${esc(h.label)}</td>
+                  <td class="nowrap-cell"><span style="font-family:var(--mono);">${h.correct}/${h.total}</span></td>
+                  <td class="nowrap-cell"><strong style="font-family:var(--mono);color:var(--accent);">${h.score10.toFixed(2)}</strong></td>
+                  <td class="nowrap-cell">${esc(formatDurationWords(h.durationSec))}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -673,9 +729,9 @@ function renderExamSetup() {
           <div>
             <label class="field-label" for="examSourceSelect">Nguồn câu hỏi</label>
             <select id="examSourceSelect" class="select-input" style="width:100%;">
-              <option value="all" selected>Cả file gốc &amp; mở rộng mục tiêu</option>
-              <option value="textbook">Chỉ câu có sẵn trong file (99 câu)</option>
-              <option value="objective">Chỉ câu mở rộng mục tiêu (201 câu)</option>
+              <option value="all" selected>Cả 2 nguồn (300 câu)</option>
+              <option value="textbook">Chỉ câu trong file (99)</option>
+              <option value="objective">Chỉ câu mở rộng (201)</option>
             </select>
           </div>
         </div>
@@ -833,9 +889,9 @@ function renderExamResult() {
       return `
         <tr>
           <td><strong>${esc(lesson.code)}</strong>: ${esc(lesson.title)}</td>
-          <td style="font-family:var(--mono);">${st.correct} / ${st.total}</td>
-          <td style="font-family:var(--mono);color:${lPct < 70 ? 'var(--wrong)' : 'var(--correct)'};">${lPct}%</td>
-          <td><button class="link-btn" data-jump-lesson="${lessonId}" type="button">Ôn lại bài này</button></td>
+          <td class="nowrap-cell" style="font-family:var(--mono);">${st.correct} / ${st.total}</td>
+          <td class="nowrap-cell" style="font-family:var(--mono);color:${lPct < 70 ? 'var(--wrong)' : 'var(--correct)'};">${lPct}%</td>
+          <td class="nowrap-cell"><button class="link-btn" data-jump-lesson="${lessonId}" type="button">Ôn bài</button></td>
         </tr>
       `;
     }).join('');
@@ -1119,12 +1175,45 @@ function renderSavedTab() {
 }
 
 // ================= BACKUP MODAL =================
+function applyImportedState(parsed, successText) {
+  if (!parsed || typeof parsed !== 'object' || !parsed.answers) {
+    throw new Error('Invalid state');
+  }
+  stopExamTimer();
+  state.answers = parsed.answers || {};
+  state.wrongCounts = parsed.wrongCounts || {};
+  state.bookmarks = Array.isArray(parsed.bookmarks) ? parsed.bookmarks : [];
+  state.checkedObjectives = parsed.checkedObjectives || {};
+  state.examHistory = Array.isArray(parsed.examHistory) ? parsed.examHistory : [];
+  state.currentIndexByScope = parsed.currentIndexByScope || {};
+  state.selectedLesson = parsed.selectedLesson || 1;
+  state.activeTab = parsed.activeTab || 'practice';
+  examSession = parsed.activeExam || null;
+  saveState();
+  if (examSession && examSession.status === 'active') {
+    startExamTimerLoop();
+  }
+  updateHeaderStats();
+  openBackupModal();
+  const msg = document.getElementById('backupStatusMsg');
+  msg.textContent = successText;
+  msg.classList.remove('is-hidden');
+  switchTab(state.activeTab);
+}
+
 function openBackupModal() {
   const modal = document.getElementById('backupModal');
   const statsEl = document.getElementById('modalStatsSummary');
+  const policyEl = document.getElementById('storagePolicyText');
   const answered = Object.keys(state.answers).length;
   const correct = Object.values(state.answers).filter(a => a.isCorrect).length;
   const wrongCnt = Object.values(state.wrongCounts).filter(c => c > 0).length;
+
+  if (policyEl) {
+    policyEl.textContent = STORAGE_OK
+      ? 'Mọi kết quả làm bài, câu sai, đánh dấu và bài thi đang làm dở được tự động lưu ngay trên trình duyệt của thiết bị này (không cần tài khoản hay database).'
+      : 'Trình duyệt đang ở chế độ chặn lưu trữ cục bộ (ví dụ Tab Ẩn danh). Bạn vẫn làm bài bình thường và có thể sao chép mã hoặc tải file JSON để lưu lại.';
+  }
 
   statsEl.innerHTML = `
     <div>Câu đã làm: <strong>${answered}/${ALL_QUESTIONS.length}</strong></div>
@@ -1132,7 +1221,10 @@ function openBackupModal() {
     <div>Câu hay sai: <strong>${wrongCnt}</strong></div>
     <div>Đánh dấu: <strong>${state.bookmarks.length}</strong></div>
     <div>Số đề đã thi: <strong>${state.examHistory.length}</strong></div>
+    <div>Lưu trữ: <strong>${STORAGE_OK ? 'Trình duyệt máy này' : 'Chỉ trong phiên'}</strong></div>
   `;
+  const codeInput = document.getElementById('transferCodeInput');
+  if (codeInput) codeInput.value = '';
   document.getElementById('backupStatusMsg').classList.add('is-hidden');
   modal.classList.remove('is-hidden');
 }
@@ -1247,6 +1339,7 @@ document.addEventListener('click', e => {
     state.currentIndexByScope[key] = next;
     saveState();
     renderPracticeTab();
+    scrollToQuestionTop();
     return;
   }
 
@@ -1255,6 +1348,7 @@ document.addEventListener('click', e => {
     state.currentIndexByScope[scopeKey()] = Number(jumpBtn.dataset.jumpIdx);
     saveState();
     renderPracticeTab();
+    scrollToQuestionTop();
     return;
   }
 
@@ -1305,6 +1399,7 @@ document.addEventListener('click', e => {
   if (examOptBtn && examSession && examSession.status === 'active') {
     examSession.items[examSession.currentIdx].selectedDisplayIdx = Number(examOptBtn.dataset.examOpt);
     pendingSubmitConfirm = false;
+    saveState();
     renderExamTab();
     return;
   }
@@ -1313,27 +1408,34 @@ document.addEventListener('click', e => {
   if (examJumpBtn && examSession && examSession.status === 'active') {
     examSession.currentIdx = Number(examJumpBtn.dataset.examJump);
     pendingSubmitConfirm = false;
+    saveState();
     renderExamTab();
+    scrollToQuestionTop();
     return;
   }
 
   if (target.id === 'examPrevBtn' && examSession && examSession.status === 'active') {
     examSession.currentIdx = Math.max(0, examSession.currentIdx - 1);
     pendingSubmitConfirm = false;
+    saveState();
     renderExamTab();
+    scrollToQuestionTop();
     return;
   }
 
   if (target.id === 'examNextBtn' && examSession && examSession.status === 'active') {
     examSession.currentIdx = Math.min(examSession.items.length - 1, examSession.currentIdx + 1);
     pendingSubmitConfirm = false;
+    saveState();
     renderExamTab();
+    scrollToQuestionTop();
     return;
   }
 
   if (target.id === 'toggleExamFlagBtn' && examSession && examSession.status === 'active') {
     const it = examSession.items[examSession.currentIdx];
     it.flagged = !it.flagged;
+    saveState();
     renderExamTab();
     return;
   }
@@ -1353,12 +1455,14 @@ document.addEventListener('click', e => {
     stopExamTimer();
     examSession = null;
     pendingSubmitConfirm = false;
+    saveState();
     renderExamTab();
     return;
   }
 
   if (target.id === 'newExamSetupBtn') {
     examSession = null;
+    saveState();
     renderExamTab();
     return;
   }
@@ -1461,13 +1565,46 @@ document.addEventListener('click', e => {
     URL.revokeObjectURL(url);
     return;
   }
+  if (target.id === 'copyTransferCodeBtn') {
+    const code = encodeTransferCode(state);
+    const input = document.getElementById('transferCodeInput');
+    const msg = document.getElementById('backupStatusMsg');
+    if (input) input.value = code;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).then(() => {
+        msg.textContent = 'Đã sao chép mã tiến độ! Gửi mã này sang điện thoại/iPad/laptop rồi dán vào ô trên.';
+        msg.classList.remove('is-hidden');
+      }).catch(() => {
+        msg.textContent = 'Đã tạo mã trong ô văn bản bên trên — hãy chọn tất cả và sao chép.';
+        msg.classList.remove('is-hidden');
+      });
+    } else {
+      msg.textContent = 'Đã tạo mã trong ô văn bản bên trên — hãy chọn tất cả và sao chép.';
+      msg.classList.remove('is-hidden');
+    }
+    return;
+  }
+  if (target.id === 'applyTransferCodeBtn') {
+    const input = document.getElementById('transferCodeInput');
+    const msg = document.getElementById('backupStatusMsg');
+    try {
+      const parsed = decodeTransferCode(input ? input.value : '');
+      applyImportedState(parsed, 'Đã khôi phục tiến độ từ mã thành công.');
+    } catch {
+      msg.textContent = 'Mã tiến độ không hợp lệ. Vui lòng kiểm tra lại.';
+      msg.classList.remove('is-hidden');
+    }
+    return;
+  }
   if (target.id === 'clearAllProgressBtn') {
     if (!target.dataset.confirm) {
       target.dataset.confirm = '1';
       target.textContent = 'Nhấn lại để xác nhận xóa';
       return;
     }
-    localStorage.removeItem(STORAGE_KEY);
+    stopExamTimer();
+    examSession = null;
+    if (STORAGE_OK) localStorage.removeItem(STORAGE_KEY);
     Object.assign(state, loadState());
     target.dataset.confirm = '';
     target.textContent = 'Xóa tiến độ';
@@ -1518,16 +1655,7 @@ document.addEventListener('change', e => {
     reader.onload = () => {
       try {
         const parsed = JSON.parse(String(reader.result));
-        if (parsed && typeof parsed === 'object' && parsed.answers) {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
-          Object.assign(state, loadState());
-          updateHeaderStats();
-          openBackupModal();
-          const msg = document.getElementById('backupStatusMsg');
-          msg.textContent = 'Khôi phục tiến độ thành công.';
-          msg.classList.remove('is-hidden');
-          switchTab(state.activeTab);
-        }
+        applyImportedState(parsed, 'Khôi phục tiến độ thành công.');
       } catch {
         const msg = document.getElementById('backupStatusMsg');
         msg.textContent = 'File không đúng định dạng sao lưu.';
@@ -1604,6 +1732,14 @@ document.addEventListener('keydown', e => {
   }
 });
 
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveState();
+});
+window.addEventListener('pagehide', saveState);
+
 // Init
+if (examSession && examSession.status === 'active') {
+  startExamTimerLoop();
+}
 updateHeaderStats();
 switchTab(state.activeTab || 'practice');
